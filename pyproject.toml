@@ -1,0 +1,15 @@
+[project]
+name = "player"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "adafruit-blinka>=8.62.0",
+    "adafruit-circuitpython-pn532>=2.4.5",
+    "pathlib>=1.0.1",
+    "psutil>=7.0.0",
+    "pygame>=2.6.1",
+    "rpi-gpio>=0.7.1",
+    "spidev>=3.7",
+]
