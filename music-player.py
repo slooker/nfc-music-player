@@ -19,6 +19,50 @@ from adafruit_pn532.spi import PN532_SPI
 BASE_PATH = '/home/slooker/music'
 CSV_FILE = '/home/slooker/music/music.csv'
 
+
+class CSVWatcher:
+    def __init__(self):
+        self.last_modified_csv_time = 0
+        self.stop_event = threading.Event()
+        self.csv_thread = None
+        self.csv_changed_queue = queue.Queue()
+
+    def _watch_csv_loop(self):
+        """Thread loop that checks for CSV changes every 10 seconds"""
+        while not self.stop_event.is_set():
+            try:
+                current_modified_time = os.path.getmtime(CSV_FILE)
+                if current_modified_time != self.last_modified_csv_time:
+                    print("CSV is changed!")
+                    self.last_modified_csv_time = current_modified_time
+                    self.csv_changed_queue.put(True)
+                else:
+                    print("CSV is not changed")
+                    self.csv_changed_queue.put(False)
+            except FileNotFoundError:
+                print("CSV file not found!")
+            # Sleep in small increments so we can exit quickly
+            for _ in range(10):
+                if self.stop_event.is_set():
+                    break
+                time.sleep(1)
+
+        print("CSV watcher thread stopping...")
+
+    def start(self):
+        if self.csv_thread is None or not self.csv_thread.is_alive():
+            print("Starting CSV watcher thread")
+            self.csv_thread = threading.Thread(target=self._watch_csv_loop, daemon=True)
+            self.csv_thread.start()
+        return self.csv_changed_queue
+
+    def stop(self):
+        print("Stopping CSV watcher thread...")
+        self.stop_event.set()
+        if self.csv_thread:
+            self.csv_thread.join()
+        print("CSV watcher stopped.")
+
 class NFCMonitor:
     def __init__(self, pn532, on_card_detected, on_card_removed):
         self.pn532 = pn532
@@ -248,34 +292,6 @@ class MusicPlayer:
         print("🛑 Card removed, stopping playback")
         self.stop_audio_immediately()
 
-    def csv_is_changed(self, csv_changed_queue):
-        ## Only check every 10 seconds
-        print("Sleeping 10")
-        time.sleep(10)
-        ## Check if the csv has changed
-        current_modified_time = os.path.getmtime(CSV_FILE)
-        if current_modified_time != self.last_modified_csv_time:
-            print("csv is changed!")
-            self.last_modified_csv_time = current_modified_time
-
-            self.csv_thread = threading.Thread(target=self.csv_is_changed, args =(self.csv_changed_queue,))
-            self.csv_thread.start()
-            return csv_changed_queue.put(True)
-
-        print("CSV is not changed")
-        self.csv_thread = threading.Thread(target=self.csv_is_changed, args =(self.csv_changed_queue,))
-        self.csv_thread.start()
-        return csv_changed_queue.put(False)
-
-    def start_csv_changed_queue(self, csv_changed_queue = queue.Queue()):
-        if not self.csv_changed_queue:
-            self.csv_changed_queue = csv_changed_queue
-        print("Starting CSV watch thread")
-        ## Start thread to watch CSV file
-        self.csv_thread = threading.Thread(target=self.csv_is_changed, args =(csv_changed_queue,))
-        self.csv_thread.start()
-        return self.csv_changed_queue
-
 def signal_handler(sig, frame):
     print("\nShutting down...")
     sys.exit(0)
@@ -289,6 +305,9 @@ def main():
     print("  Remove NFC card: Stop music")
     print("  Volume control: Run volume_control_separate.py separately")
     print()
+
+    watcher = CSVWatcher()
+    csv_queue = watcher.start()
 
     # Initialize PN532 SPI
     spi = board.SPI()
@@ -315,17 +334,15 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    csv_changed_queue = player.start_csv_changed_queue()
-
     print("Ready to scan cards...")
     print(f"Music directory: {BASE_PATH}")
 
     try:
         while True:
             # Check the queue to see if csv changed
-            if not csv_changed_queue.empty():
-                result = csv_changed_queue.get()
-                if result == True:
+            changed = csv_queue.get()
+            if changed:
+                if changed == True:
                     player.load_uid_map()
 
             if player.audio_playing:
