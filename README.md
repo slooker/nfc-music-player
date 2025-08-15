@@ -23,12 +23,16 @@ A touchless music player that uses NFC cards to trigger playback of specific son
 ### Pin Connections
 
 #### NFC PN532 Module
-| PN532 Pin | Pi Zero Pin | GPIO | Description |
-|-----------|-------------|------|-------------|
-| VCC | Pin 1 | 3.3V | Power |
-| GND | Pin 6 | GND | Ground |
-| SDA | Pin 3 | GPIO 2 | I2C Data |
-| SCL | Pin 5 | GPIO 3 | I2C Clock |
+| PN532 Pin | Pi Zero Pin | GPIO       | Description                                 |
+|-----------|------------|------------|---------------------------------------------|
+| VCC       | 17         | -          | 3.3V power (do NOT use 5V)                 |
+| GND       | 9          | -          | Ground                                      |
+| SCK       | 23         | GPIO11     | SPI Clock                                   |
+| MOSI      | 19         | GPIO10     | SPI Master Out / Slave In                   |
+| MISO      | 21         | GPIO9      | SPI Master In / Slave Out                   |
+| SS / CS   | 26         | GPIO8      | SPI Chip Select                             |
+| IRQ       | 22         | GPIO25     | Interrupt pin for card detection (optional)|
+| RSTO      | Not used   | -          | Reset pin (optional, can leave unconnected)|
 
 #### PCM5102 I2S DAC
 | PCM5102 Pin | Pi Zero Pin | GPIO | Description |
