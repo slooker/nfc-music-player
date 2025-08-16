@@ -35,13 +35,13 @@ A touchless music player that uses NFC cards to trigger playback of specific son
 | RSTO      | Not used   | -          | Reset pin (optional, can leave unconnected)|
 
 #### PCM5102 I2S DAC
-| PCM5102 Pin | Pi Zero Pin | GPIO | Description |
-|-------------|-------------|------|-------------|
-| VCC | Pin 1 | 3.3V | Power |
-| GND | Pin 6 | GND | Ground |
-| BCK | Pin 12 | GPIO 18 | Bit Clock |
-| LRCK | Pin 35 | GPIO 19 | Left/Right Clock |
-| DIN | Pin 40 | GPIO 21 | Data Input |
+| PCM5102 Pin | Pi Zero Pin | GPIO   | Description                       |
+|------------|------------|--------|-----------------------------------|
+| VCC        | 1          | 3.3V   | Power (optional, 3.3V supply)     |
+| GND        | 6          | GND    | Ground                            |
+| DIN        | 40         | GPIO21 | I2S Data Input                     |
+| BCK        | 12         | GPIO18 | I2S Bit Clock                      |
+| LCK (LRCK) | 35         | GPIO19 | I2S Word Select / Left-Right Clock |
 
 #### Rotary Encoder (Volume Control)
 | Encoder Pin | Pi Zero Pin | GPIO | Description |
