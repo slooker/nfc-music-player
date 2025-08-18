@@ -48,9 +48,9 @@ A touchless music player that uses NFC cards to trigger playback of specific son
 |-------------|-------------|------|-------------|
 | VCC | 3.3V | - | Power |
 | GND | GND | - | Ground |
-| CLK | Pin 36 | GPIO 16 | Clock |
-| DT | Pin 38 | GPIO 20 | Data |
-| SW | Pin 32 | GPIO 12 | Switch/Button |
+| CLK | Pin 11 | GPIO 17 | Clock |
+| DT | Pin 13 | GPIO 27 | Data |
+| SW | Pin 15 | GPIO 22 | Switch/Button |
 
 ## Software Installation
 
