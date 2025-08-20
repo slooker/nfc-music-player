@@ -7,6 +7,7 @@ import RPi.GPIO as GPIO
 import time
 import sys
 import signal
+import subprocess
 
 # Volume control file
 VOLUME_FILE = '/tmp/music_volume'
@@ -33,6 +34,23 @@ button_delay = 0.3     # 300ms for button
 
 # Mute state
 muted_volume = None
+
+
+MIXER = "SoftMaster"   # your softvol control name
+
+def apply_system_volume(vol: int):
+    vol = max(0, min(100, int(vol)))
+    try:
+        # -q = quiet; -M = use mapped dB scale; -D default = use default device
+        subprocess.run(
+            ["amixer", "-q", "-M", "-D", "default", "sset", MIXER, f"{vol}%"],
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"[WARN] amixer failed: {e}")
+    except Exception as e:
+        print(f"[WARN] Could not set ALSA volume: {e}")
+
 
 def setup_gpio():
     GPIO.setmode(GPIO.BCM)
@@ -65,6 +83,7 @@ def change_volume(delta):
     if muted_volume is not None:
         volume = muted_volume
         muted_volume = None
+        apply_system_volume(volume)
         print(f"🔊 Unmuted - Volume: {volume}%")
     
     new_volume = max(min_volume, min(max_volume, volume + delta))
@@ -72,6 +91,7 @@ def change_volume(delta):
         volume = new_volume
         write_volume()
         direction = "🔊" if delta > 0 else "🔉"
+        apply_system_volume(volume)
         print(f"{direction} Volume: {volume}%")
 
 def toggle_mute():
@@ -83,6 +103,7 @@ def toggle_mute():
             muted_volume = volume
             volume = 0
             write_volume()
+            apply_system_volume(volume)
             print("🔇 Muted")
         else:
             print("🔇 Already at 0%")
@@ -91,6 +112,7 @@ def toggle_mute():
         volume = muted_volume
         muted_volume = None
         write_volume()
+        apply_system_volume(volume)
         print(f"🔊 Unmuted - Volume: {volume}%")
 
 def cleanup(signum=None, frame=None):

@@ -37,7 +37,7 @@ class CSVWatcher:
                     self.last_modified_csv_time = current_modified_time
                     self.csv_changed_queue.put(True)
                 else:
-                    print("CSV is not changed")
+                    #print("CSV is not changed")
                     self.csv_changed_queue.put(False)
             except FileNotFoundError:
                 print("CSV file not found!")
