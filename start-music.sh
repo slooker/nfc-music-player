@@ -10,7 +10,7 @@ python volume-control.py &
 VOLUME_PID=$!
 
 # Start music player in foreground
-python music-player.py
+python main.py
 
 # Clean up volume control if music player exits
 kill $VOLUME_PID 2>/dev/null
