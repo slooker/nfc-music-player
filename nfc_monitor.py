@@ -4,7 +4,6 @@ import threading
 from adafruit_pn532.spi import PN532_SPI
 from time import sleep
 
-
 class NFCMonitor:
     def __init__(self, on_card_detected, on_card_removed):
         self.on_card_detected = on_card_detected

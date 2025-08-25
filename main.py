@@ -1,73 +1,40 @@
-#!/usr/bin/env python3
-"""
-NFC Music Player for Raspberry Pi Zero 2W — SPI version with event callbacks
-"""
-
-import os
-import time
-import subprocess
-import threading
-import signal
-import sys
-import digitalio
-import board
-import queue
-from csv_watcher import CSVWatcher
-from music_player import MusicPlayer
+import library
+import playback
+import syslog
+from volume_control import VolumeControl, cleanup
+from threading import Thread, Event
+from traceback import format_exc
 from nfc_monitor import NFCMonitor
 
-MUSIC_PATH = '/home/slooker/music'
-CSV_FILE = '/home/slooker/music/music.csv'
+stop_event = Event()
 
-def signal_handler(sig, frame):
-    print("\nShutting down...")
-    sys.exit(0)
-
-def main():
-    print("NFC Music Player — SPI Version")
-    print("==============================")
-    print("Controls:")
-    print("  Place NFC card: Play music")
-    print("  Remove NFC card: Stop music")
-    print("  Volume control: Run volume_control_separate.py separately")
-    print()
-
-    watcher = CSVWatcher(CSV_FILE)
-    csv_queue = watcher.start()
-
-    player = MusicPlayer(MUSIC_PATH, CSV_FILE)
-
-    # Setup NFC monitor with callbacks
-    monitor = NFCMonitor(
-        on_card_detected=player.handle_new_card,
-        on_card_removed=player.handle_card_removed,
-    )
-    monitor.start()
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    print("Ready to scan cards...")
-    print(f"Music directory: {MUSIC_PATH}")
-
+def thread(func):
     try:
-        while True:
-            # Check the queue to see if csv changed
-            changed = csv_queue.get()
-            if changed:
-                if changed == True:
-                    player.load_uid_map()
+        func()
+    except:
+        e = format_exc()
+        print(e)
+        syslog.syslog(syslog.LOG_ERR, e)
+        stop_event.set()
 
-            if player.audio_playing:
-                player.check_and_apply_volume_change()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\nExiting...")
-    finally:
-        monitor.stop()
-        player.stop_audio_immediately()
+def handle_new_card(uid_str: str):
+    print(f"handling new card: {uid_str}")
+    if library.playlists[uid_str]:
+        playback.queue(uid_str)
 
+def handle_card_removed():
+    print("card removed")
+    playback.stop()
 
-if __name__ == "__main__":
-    main()
+try:
+    playback.init()
+    monitor = NFCMonitor(
+        on_card_detected=handle_new_card,
+        on_card_removed=handle_card_removed,
+    ).start()
+    VolumeControl().start()
+    
 
+    stop_event.wait()
+except Exception as e:
+    print(f"Error: {e}")

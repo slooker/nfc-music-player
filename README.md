@@ -61,7 +61,7 @@ sudo apt update
 sudo apt upgrade -y
 
 # Install required packages
-sudo apt install -y python3-pip python3-venv git mpg123 alsa-utils i2c-tools
+sudo apt install -y python3-pip python3-venv git mpg123 alsa-utils i2c-tools libasound2-plugins alsa-utils acl curl jq
 
 # Enable I2C interface
 sudo raspi-config
@@ -108,25 +108,16 @@ Create `~/.asoundrc`:
 ```
 pcm.softvol {
     type softvol
-    slave.pcm "hw:0,0"
-    control {
-        name "SoftMaster"
-        card 0
-    }
-    min_dB -51.0
-    max_dB 0.0
-    resolution 256
+    slave.pcm "plughw:0,0"
+    control { name "Softvol"; card 0 }
 }
+ctl.softvol { type hw card 0 }
 
 pcm.!default {
     type plug
     slave.pcm "softvol"
 }
-
-ctl.!default {
-    type hw
-    card 0
-}
+ctl.!default { type hw card 0 }
 ```
 
 After creating the file, reboot the Pi:
@@ -160,9 +151,7 @@ A4CC7905,another_song.mp3
 ```
 
 ### Copy Project Files
-Place these files in `/home/slooker/player/`:
-- `music-player.py` - Main NFC music player
-- `volume_control_separate.py` - Rotary encoder volume control
+Place all of the `*.py` files in `/home/slooker/player/`:
 
 ## Systemd Service Setup
 
@@ -180,18 +169,18 @@ export PATH="/home/slooker/player/.venv/bin:$PATH"
 export VIRTUAL_ENV="/home/slooker/player/.venv"
 
 # Start volume control in background
-python volume_control_separate.py &
+python volume-control.py &
 VOLUME_PID=$!
 
 # Start music player in foreground
-python music-player.py
+python main.py
 
 # Clean up volume control if music player exits
 kill $VOLUME_PID 2>/dev/null
 ```
 
 ```bash
-chmod +x /home/slooker/player/start_music_player.sh
+chmod +x /home/slooker/player/start-music.sh
 ```
 
 ### Create Systemd Service

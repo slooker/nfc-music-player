@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""
+Volume Control for NFC Music Player
+Polling-based version for rotary encoder and button
+"""
+import RPi.GPIO as GPIO
+import time
+import sys
+import signal
+import subprocess
+import media
+
+# Volume control file
+VOLUME_FILE = '/tmp/music_volume'
+
+# Starting volume
+volume = 50
+min_volume = 0
+max_volume = 100
+volume_step = 5
+
+# BCM GPIO pins - Fixed to match your hardware setup
+#CLK_PIN = 16  # Pin 36 - Clock
+#DT_PIN  = 20  # Pin 38 - Data  
+#SW_PIN  = 12  # Pin 32 - Switch/Button (was 4, now corrected)
+
+# BCM GPIO pins - avoid I²S pins 18–21
+CLK_PIN = 17  # Pin 11 - Clock
+DT_PIN  = 27  # Pin 13 - Data
+SW_PIN  = 22  # Pin 15 - Switch/Button (to GND, PUD_UP)
+
+# Debounce settings
+debounce_delay = 0.01  # 10ms for rotary
+button_delay = 0.3     # 300ms for button
+
+# Mute state
+muted_volume = None
+
+class VolumeControl:
+    last_clk = None
+    last_sw = None
+    last_rot_time = time.time()
+    last_btn_time = time.time()
+
+    def apply_system_volume(self, vol: int):
+        vol = max(0, min(100, int(vol)))
+        try:
+            # -q = quiet; -M = use mapped dB scale; -D default = use default device
+            media.volume(vol)
+        except Exception as e:
+            print(f"[WARN] Could not set volume: {e}")
+    
+    
+    def setup_gpio(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup(CLK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(DT_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(SW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        
+        print(f"Volume control initialized on GPIO pins CLK={CLK_PIN}, DT={DT_PIN}, SW={SW_PIN}")
+    
+    def write_volume(self):
+        try:
+            with open(VOLUME_FILE, 'w') as f:
+                f.write(str(volume))
+        except Exception as e:
+            print(f"Error writing volume: {e}")
+    
+    def read_volume(self):
+        global volume
+        try:
+            with open(VOLUME_FILE, 'r') as f:
+                volume = int(f.read().strip())
+        except (FileNotFoundError, ValueError):
+            self.write_volume()  # create file with default volume
+    
+    def change_volume(self, delta):
+        global volume, muted_volume
+        
+        # If we're muted and trying to change volume, unmute first
+        if muted_volume is not None:
+            volume = muted_volume
+            muted_volume = None
+            apply_system_volume(volume)
+            print(f"🔊 Unmuted - Volume: {volume}%")
+        
+        new_volume = max(min_volume, min(max_volume, volume + delta))
+        if new_volume != volume:
+            volume = new_volume
+            self.write_volume()
+            direction = "🔊" if delta > 0 else "🔉"
+            self.apply_system_volume(volume)
+            print(f"{direction} Volume: {volume}%")
+    
+    def toggle_mute(self):
+        global volume, muted_volume
+        
+        if muted_volume is None:
+            # Currently not muted - mute it
+            if volume > 0:
+                muted_volume = volume
+                volume = 0
+                self.write_volume()
+                self.apply_system_volume(volume)
+                print("🔇 Muted")
+            else:
+                print("🔇 Already at 0%")
+        else:
+            # Currently muted - unmute it
+            volume = muted_volume
+            muted_volume = None
+            self.write_volume()
+            self.apply_system_volume(volume)
+            print(f"🔊 Unmuted - Volume: {volume}%")
+    
+    def __init__(self):
+        signal.signal(signal.SIGINT, cleanup)
+        signal.signal(signal.SIGTERM, cleanup)
+        
+        self.setup_gpio()
+        self.read_volume()
+        print(f"Current volume: {volume}%")
+        
+        # Track previous states
+        self.last_clk = GPIO.input(CLK_PIN)
+        self.last_sw = GPIO.input(SW_PIN)
+        self.last_rot_time = time.time()
+        self.last_btn_time = time.time()
+    
+    def start(self):
+        print("Volume Control for NFC Music Player")
+        print("Rotate encoder to change volume, press button to mute/unmute")
+        print("Ctrl+C to exit")
+        try:
+            while True:
+                now = time.time()
+                
+                # --- Rotary encoder handling ---
+                clk = GPIO.input(CLK_PIN)
+                if clk != self.last_clk and now - self.last_rot_time > debounce_delay:
+                    dt = GPIO.input(DT_PIN)
+                    if clk == 0:  # falling edge on CLK
+                        if dt != clk:
+                            self.change_volume(volume_step)   # clockwise
+                        else:
+                            self.change_volume(-volume_step)  # counter-clockwise
+                    last_rot_time = now
+                self.last_clk = clk
+                
+                # --- Button handling (polling only) ---
+                sw = GPIO.input(SW_PIN)
+                if sw == 0 and self.last_sw == 1 and now - self.last_btn_time > button_delay:
+                    self.toggle_mute()
+                    self.last_btn_time = now
+                self.last_sw = sw
+                
+                time.sleep(0.001)  # 1ms polling
+                
+        except KeyboardInterrupt:
+            cleanup()
+    
+def cleanup(signum=None, frame=None):
+    print("\nCleaning up GPIO...")
+    GPIO.cleanup()
+    sys.exit(0)
