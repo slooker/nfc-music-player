@@ -13,8 +13,8 @@ playlists = {
     },
 
     # example
-    "rfid_id": {
-        "uris": "library:album:123456789",
+    "A4CC7905": {
+        "uris": "library:playlist:10",
         "shuffle": "false",
     },
 

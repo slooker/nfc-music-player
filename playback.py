@@ -6,6 +6,7 @@ import syslog
 from time import sleep
 from digitalio import DigitalInOut, Pull
 from traceback import print_exc, format_exc
+from watch_reload import start_watch
 
 #PIN_SWITCH_MUTE = board.D5
 #PIN_SWITCH_MODE = board.D6
