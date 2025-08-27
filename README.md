@@ -61,7 +61,14 @@ sudo apt update
 sudo apt upgrade -y
 
 # Install required packages
-sudo apt install -y python3-pip python3-venv git mpg123 alsa-utils i2c-tools
+sudo apt install -y python3-pip python3-venv git mpg123 alsa-utils i2c-tools \
+build-essential git autotools-dev autoconf automake libtool gettext gawk \
+gperf bison flex libconfuse-dev libunistring-dev libsqlite3-dev \
+libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
+libasound2-dev libxml2-dev libgcrypt20-dev libavahi-client-dev zlib1g-dev \
+libevent-dev libplist-dev libsodium-dev libjson-c-dev libwebsockets-dev \
+libcurl4-openssl-dev libprotobuf-c-dev \
+libasound2-plugins alsa-utils acl curl jq
 
 # Enable I2C interface
 sudo raspi-config
@@ -90,6 +97,39 @@ uv add RPi.GPIO
 # Alternative with pip:
 # pip install adafruit-blinka adafruit-circuitpython-pn532 psutil RPi.GPIO
 ```
+#### Install Owntone server
+```
+git clone https://github.com/owntone/owntone-server.git
+cd owntone-server
+autoreconf -i
+./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-install-user
+make
+sudo make install
+```
+Edit the owntone config to add spotify support: 
+`nano /etc/owntone.conf`
+
+and add the following under the audio section:
+```
+spotify {
+  bitrate = 3
+  base_playlist_disable = true
+  artist_override = true
+  album_override = true
+}
+```
+Also, change the music path from `/srv/music` to `/home/<your login>/music`.
+Finally, create a music directory and add permissions for the owntone user to read it:
+```
+# allow traversal of parent directories
+sudo setfacl -m u:owntone:x /home
+sudo setfacl -m u:owntone:x /home/<you>
+
+# allow read+traverse of the music tree (+ defaults for new files)
+sudo setfacl -R -m u:owntone:rx /home/<you>/music
+sudo setfacl -R -d -m u:owntone:rx /home/<you>/music
+```
+Finally, go to `http://<raspberry pi ip>:3689/#/settings/online-services` and connect your spotify account
 
 ### Audio Configuration
 
@@ -146,80 +186,17 @@ amixer scontrols
 ```bash
 # Create music directory
 mkdir -p /home/slooker/music
-
-# Create NFC card mapping file
-nano /home/slooker/music.csv
 ```
-
-Add your card mappings to `music.csv`:
-```
-# UID,filename (relative to music directory)
-04A1B2C3,song1.mp3
-823E9FAB,album_folder
-A4CC7905,another_song.mp3
-```
-
 ### Copy Project Files
-Place these files in `/home/slooker/player/`:
-- `music-player.py` - Main NFC music player
-- `volume_control_separate.py` - Rotary encoder volume control
-
-## Systemd Service Setup
-
-### Create Startup Script
-```bash
-nano /home/slooker/player/start_music_player.sh
+Clone the github repo:
 ```
-
-```bash
-#!/bin/bash
-cd /home/slooker/player
-
-# Activate virtual environment
-export PATH="/home/slooker/player/.venv/bin:$PATH"
-export VIRTUAL_ENV="/home/slooker/player/.venv"
-
-# Start volume control in background
-python volume_control_separate.py &
-VOLUME_PID=$!
-
-# Start music player in foreground
-python music-player.py
-
-# Clean up volume control if music player exits
-kill $VOLUME_PID 2>/dev/null
+gh repo clone slooker/nfc-music-player
 ```
-
-```bash
-chmod +x /home/slooker/player/start_music_player.sh
+Move the `music-player.service` file into `/etc/systemd/system` and enable it:
 ```
+sudo mv music-player.service /etc/systemd/system
 
-### Create Systemd Service
-```bash
-sudo nano /etc/systemd/system/music-player.service
-```
-
-```ini
-[Unit]
-Description=NFC Music Player with Volume Control
-After=sound.service
-Wants=sound.service
-
-[Service]
-Type=simple
-User=slooker
-ExecStart=/home/slooker/player/start_music_player.sh
-WorkingDirectory=/home/slooker/player
-Restart=always
-RestartSec=5
-Environment=HOME=/home/slooker
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Enable and Start Service
-```bash
+# Enable the music player as a service and start it
 sudo systemctl enable music-player.service
 sudo systemctl start music-player.service
 
@@ -239,10 +216,31 @@ sudo journalctl -u music-player.service -f
    ```
 2. Place an NFC card near the reader
 3. Note the UID that appears (e.g., `A4CC7905`)
-4. Add to `/home/slooker/music.csv`:
+4. Add to `/home/slooker/player/library.py` (note, you only need one of these, pick which one is relevant for you):
    ```
-   A4CC7905,your_song.mp3
+    # name of spotify playlist
+    "<nfc tag string>": {
+        "uris": "spotify:playlist:37i9dQZF1DWZLL3REk8t1E",
+        "shuffle": "true"
+    },
+    # name of local album
+    "<nfc tag string>": {
+        "uris": "library:album:8249546791409011466",
+        "shuffle": "false"
+    },
    ```
+
+   You can get the spotify playlist id from the url.  For example, https://open.spotify.com/album/7nnNLD5cv828YSFxXaezRm, for this album, you would create an entry below in your `library.py` file:
+   ```
+   # Perfect Circle - Eat the Elephant
+   "<nfc tag string>": {
+       "uris": "spotify:playlist:7nnNLD5cv828YSFxXaezRm",
+       "shuffle": "true"
+   },
+   ```
+
+   For a local playlist or album, you would look in Owntone (usually http://owntone.local:3689 or http://<raspberry pi ip>:3689)
+   
 
 ### Controls
 - **Place NFC Card**: Start playing assigned music
