@@ -70,6 +70,7 @@ libevent-dev libplist-dev libsodium-dev libjson-c-dev libwebsockets-dev \
 libcurl4-openssl-dev libprotobuf-c-dev \
 libasound2-plugins alsa-utils acl curl jq
 
+
 # Enable I2C interface
 sudo raspi-config
 # Navigate to: Interface Options > I2C > Enable
@@ -148,25 +149,16 @@ Create `~/.asoundrc`:
 ```
 pcm.softvol {
     type softvol
-    slave.pcm "hw:0,0"
-    control {
-        name "SoftMaster"
-        card 0
-    }
-    min_dB -51.0
-    max_dB 0.0
-    resolution 256
+    slave.pcm "plughw:0,0"
+    control { name "Softvol"; card 0 }
 }
+ctl.softvol { type hw card 0 }
 
 pcm.!default {
     type plug
     slave.pcm "softvol"
 }
-
-ctl.!default {
-    type hw
-    card 0
-}
+ctl.!default { type hw card 0 }
 ```
 
 After creating the file, reboot the Pi:
@@ -187,7 +179,7 @@ amixer scontrols
 # Create music directory
 mkdir -p /home/slooker/music
 ```
-### Copy Project Files
+### Setup Player
 Clone the github repo:
 ```
 gh repo clone slooker/nfc-music-player
