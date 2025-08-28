@@ -68,12 +68,14 @@ libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
 libasound2-dev libxml2-dev libgcrypt20-dev libavahi-client-dev zlib1g-dev \
 libevent-dev libplist-dev libsodium-dev libjson-c-dev libwebsockets-dev \
 libcurl4-openssl-dev libprotobuf-c-dev \
+samba samba-common-bin smbclient cifs-utils \
 libasound2-plugins alsa-utils acl curl jq
-
-
-# Enable I2C interface
+```
+And then enable the I2C and SPI interfaces
+```
 sudo raspi-config
 # Navigate to: Interface Options > I2C > Enable
+# Navigate to: Interface Options > SPI > Enable
 ```
 
 ### Python Environment Setup
@@ -110,6 +112,18 @@ sudo make install
 Edit the owntone config to add spotify support: 
 `nano /etc/owntone.conf`
 
+Change the `audio { }` section like so (assuming your local computer is output 0):
+```
+audio {
+  nickname = "Computer"
+  type = "alsa"
+  card = "softvol"        # use our PCM by name (from .asoundrc)
+  mixer = "Softvol"       # exact control name
+  mixer_device = "hw:0"   # control lives on card 0
+}
+```
+You can test that your outputs are set up by running `sudo -u owntone speaker-test -D softvol -c 2 -t sine -l 1`
+
 and add the following under the audio section:
 ```
 spotify {
@@ -133,15 +147,60 @@ sudo setfacl -R -d -m u:owntone:rx /home/<you>/music
 Finally, go to `http://<raspberry pi ip>:3689/#/settings/online-services` and connect your spotify account
 
 ### Audio Configuration
+#### Setting Owntone Settings
+To see a list of outputs, run this:
+```bash
+curl -s "http://localhost:3689/api/outputs" | jq .
+```
+Usually your local pi will be output 0.  
+
 
 #### Enable I2S Audio
-Add to `/boot/firmware/config.txt`:
+Assuming you are using a Pi Zero 2W, your entire `/boot/firmware/config.txt` should be as follows:
 ```
+# For more options and information see
+# http://rptl.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# Disable the VC4 GPU driver (No graphics needed)
+dtoverlay=vc4-fkms-v3d
+disable_fw_kms_setup=1
+
+# Run in 64-bit mode (optional)
+arm_64bit=1
+
+# Disable overscan if you don't use a display
+disable_overscan=1
+
+# Run at max CPU speed (optional, can be adjusted)
+arm_boost=1
+
+# Audio settings for PCM5102 DAC (using I2S interface)
+[all]
+# Enable I2S and audio (required for external DAC)
 dtparam=i2s=on
-dtparam=audio=on
-dtoverlay=i2s-dac
+#dtparam=audio=on
 hdmi_audio=0
 hdmi_ignore_audio=1
+
+# Use the correct overlay for PCM5102 DAC
+dtoverlay=hifiberry-dac
+
+# Disable the HDMI output entirely since you don't use a display
+hdmi_force_hotplug=0
+dtparam=i2c_arm=on
+
+dtparam=i2c_arm_baudrate=50000
+
+# Increase I2C timeout
+dtparam=i2c_timeout=1000
+
+# Reduce audio buffer underruns
+dtparam=audio=off
+dtparam=spi=on
 ```
 
 #### Setup Software Volume Control
