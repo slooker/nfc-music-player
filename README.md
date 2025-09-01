@@ -69,21 +69,13 @@ libasound2-dev libxml2-dev libgcrypt20-dev libavahi-client-dev zlib1g-dev \
 libevent-dev libplist-dev libsodium-dev libjson-c-dev libwebsockets-dev \
 libcurl4-openssl-dev libprotobuf-c-dev \
 samba samba-common-bin smbclient cifs-utils \
-libasound2-plugins alsa-utils acl curl jq
-```
-And then enable the I2C and SPI interfaces
-```
-sudo raspi-config
-# Navigate to: Interface Options > I2C > Enable
-# Navigate to: Interface Options > SPI > Enable
-```
+libasound2-plugins alsa-utils acl curl jq vim
 
-### Python Environment Setup
-```bash
-# Create project directory
-mkdir -p /home/slooker/player
-cd /home/slooker/player
+# Clone github repo into `player` directory
+git clone https://github.com/slooker/nfc-music-player.git player
+cd player
 
+## Python Environment Setup
 # Create virtual environment
 python3 -m venv .venv
 
@@ -91,24 +83,56 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install Python dependencies with uv (or pip)
+# Alternative with pip:
+# pip install adafruit-blinka adafruit-circuitpython-pn532 psutil RPi.GPIO
 pip install uv  # if you don't have uv
 uv add adafruit-blinka
 uv add adafruit-circuitpython-pn532
 uv add psutil
 uv add RPi.GPIO
 
-# Alternative with pip:
-# pip install adafruit-blinka adafruit-circuitpython-pn532 psutil RPi.GPIO
-```
-#### Install Owntone server
-```
+## Install Owntone server
+cd
 git clone https://github.com/owntone/owntone-server.git
 cd owntone-server
 autoreconf -i
 ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-install-user
 make
 sudo make install
+
+
+# Setup Software Volume Control
+echo 'pcm.softvol {
+    type softvol
+    slave.pcm "plughw:0,0"
+    control { name "Softvol"; card 0 }
+}
+ctl.softvol { type hw card 0 }
+
+pcm.!default {
+    type plug
+    slave.pcm "softvol"
+}
+ctl.!default { type hw card 0 }' > $HOME/.asoundrc
+
+# Finally, create a music directory and add permissions for the owntone user to read it:
+mkdir $HOME/music
+# allow traversal of parent directories
+sudo setfacl -m u:owntone:x /home
+sudo setfacl -m u:owntone:x $HOME
+
+# allow read+traverse of the music tree (+ defaults for new files)
+sudo setfacl -R -m u:owntone:rx $HOME/music
+sudo setfacl -R -d -m u:owntone:rx $HOME/music
 ```
+
+And then enable the I2C and SPI interfaces
+```
+sudo raspi-config
+# Navigate to: Interface Options > I2C > Enable
+# Navigate to: Interface Options > SPI > Enable
+```
+
 Edit the owntone config to add spotify support: 
 `nano /etc/owntone.conf`
 
@@ -134,16 +158,7 @@ spotify {
 }
 ```
 Also, change the music path from `/srv/music` to `/home/<your login>/music`.
-Finally, create a music directory and add permissions for the owntone user to read it:
-```
-# allow traversal of parent directories
-sudo setfacl -m u:owntone:x /home
-sudo setfacl -m u:owntone:x /home/<you>
 
-# allow read+traverse of the music tree (+ defaults for new files)
-sudo setfacl -R -m u:owntone:rx /home/<you>/music
-sudo setfacl -R -d -m u:owntone:rx /home/<you>/music
-```
 Finally, go to `http://<raspberry pi ip>:3689/#/settings/online-services` and connect your spotify account
 
 ### Audio Configuration
@@ -178,46 +193,26 @@ disable_overscan=1
 # Run at max CPU speed (optional, can be adjusted)
 arm_boost=1
 
-# Audio settings for PCM5102 DAC (using I2S interface)
 [all]
 # Enable I2S and audio (required for external DAC)
 dtparam=i2s=on
-#dtparam=audio=on
-hdmi_audio=0
-hdmi_ignore_audio=1
 
 # Use the correct overlay for PCM5102 DAC
 dtoverlay=hifiberry-dac
 
 # Disable the HDMI output entirely since you don't use a display
 hdmi_force_hotplug=0
-dtparam=i2c_arm=on
-
-dtparam=i2c_arm_baudrate=50000
+hdmi_audio=0
+hdmi_ignore_audio=1
 
 # Increase I2C timeout
 dtparam=i2c_timeout=1000
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=50000
 
 # Reduce audio buffer underruns
 dtparam=audio=off
 dtparam=spi=on
-```
-
-#### Setup Software Volume Control
-Create `~/.asoundrc`:
-```
-pcm.softvol {
-    type softvol
-    slave.pcm "plughw:0,0"
-    control { name "Softvol"; card 0 }
-}
-ctl.softvol { type hw card 0 }
-
-pcm.!default {
-    type plug
-    slave.pcm "softvol"
-}
-ctl.!default { type hw card 0 }
 ```
 
 After creating the file, reboot the Pi:
