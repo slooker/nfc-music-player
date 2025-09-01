@@ -115,6 +115,24 @@ pcm.!default {
 }
 ctl.!default { type hw card 0 }' > $HOME/.asoundrc
 
+sudo mkdir /home/owntone
+sudo chown -R owntone:owntone /home/owntone
+# Setup Software Volume Control
+sudo -u owntone echo 'pcm.softvol {
+    type softvol
+    slave.pcm "plughw:0,0"
+    control { name "Softvol"; card 0 }
+}
+ctl.softvol { type hw card 0 }
+
+pcm.!default {
+    type plug
+    slave.pcm "softvol"
+}
+ctl.!default { type hw card 0 }' > /home/owntone/.asoundrc
+
+
+
 # Finally, create a music directory and add permissions for the owntone user to read it:
 mkdir $HOME/music
 # allow traversal of parent directories
