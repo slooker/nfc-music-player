@@ -100,7 +100,6 @@ autoreconf -i
 make
 sudo make install
 
-
 # Setup Software Volume Control
 echo 'pcm.softvol {
     type softvol
@@ -246,24 +245,18 @@ amixer scontrols
 
 ## Project Setup
 
-### Create Music Directory and Mapping
-```bash
-# Create music directory
-mkdir -p /home/slooker/music
-```
-### Setup Player
-Clone the github repo:
-```
-gh repo clone slooker/nfc-music-player
-```
-Move the `music-player.service` file into `/etc/systemd/system` and enable it:
-```
+
+# Move the `music-player.service` file into `/etc/systemd/system` and enable it and the owntone service
 sudo mv music-player.service /etc/systemd/system
 
 # Enable the music player as a service and start it
 sudo systemctl enable music-player.service
 sudo systemctl start music-player.service
 
+# Enable Owntone as a service and start it
+sudo systemctl enable owntone.service
+sudo systemctl start owntone.service
+```
 # Check status
 sudo systemctl status music-player.service
 
