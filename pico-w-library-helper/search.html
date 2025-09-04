@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pico W – NFC → Redis Mapper</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin: 0; padding: 1rem; background: #0b1220; color: #e6e9ef; }
+    h1 { margin: 0 0 1rem; font-size: 1.25rem; }
+    .card { background: #131a2a; border: 1px solid #263149; border-radius: 12px; padding: 1rem; }
+    .grid { display: grid; gap: .75rem; }
+    .row { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: .5rem; }
+    input[type="text"] { width: 100%; padding: .6rem .7rem; background: #0f1524; color: #e6e9ef; border: 1px solid #2a3550; border-radius: 10px; }
+    input[readonly] { opacity: .9; }
+    button { padding: .6rem .9rem; border: 1px solid #3a4c78; background: #1a2440; color: #e6e9ef; border-radius: 10px; cursor: pointer; }
+    button:hover { background: #223057; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+    .item { display: grid; grid-template-columns: 64px 1fr; gap: .6rem; padding: .6rem; border: 1px solid #263149; border-radius: 10px; background: #0f1524; cursor: pointer; }
+    .item:hover { border-color: #3a4c78; background: #142045; }
+    .item.selected { outline: 2px solid #5aa0ff; }
+    .cover { width: 64px; height: 64px; background: #1b2134; border-radius: 8px; object-fit: cover; }
+    .meta { display: grid; gap: .2rem; }
+    .title { font-weight: 600; }
+    .artist, .subtle { color: #a9b3c9; font-size: .9rem; }
+    .status { min-height: 1.2rem; color: #9fd68f; }
+    .error { color: #ff9797; }
+    .muted { color: #a9b3c9; font-size: .9rem; }
+    .footer { margin-top: 1rem; color: #93a1ba; font-size: .85rem; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    @media (max-width: 720px) { .row { grid-template-columns: 1fr; } .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Pico W – Map NFC Card → Album URI</h1>
+
+  <div class="grid">
+    <div class="card grid">
+      <div class="row">
+        <label for="searchInput">Search</label>
+        <div class="actions">
+          <input id="searchInput" type="text" placeholder="e.g., Black Holes and Revelations" />
+          <button id="searchBtn">Search</button>
+        </div>
+      </div>
+
+      <div class="muted">Results (albums)</div>
+      <div id="results" class="results"></div>
+      <div id="searchStatus" class="status"></div>
+    </div>
+
+    <div class="two-col">
+      <div class="card grid">
+        <div class="row">
+          <label for="nfcField">NFC Card</label>
+          <div class="actions">
+            <input id="nfcField" type="text" readonly placeholder="Waiting for card…" />
+            <button id="refreshNfcBtn" title="Manually poll /nfc">Refresh NFC</button>
+          </div>
+        </div>
+        <div class="muted">Pico should expose <code>/nfc</code> returning <code>{"uid":"43A2EB33"}</code>.</div>
+      </div>
+
+      <div class="card grid">
+        <div class="row">
+          <label for="uriField">Selected URI</label>
+          <input id="uriField" type="text" readonly placeholder="Click a result to fill this" />
+        </div>
+        <div class="actions">
+          <button id="saveBtn">Save to Redis</button>
+          <div id="saveStatus" class="status"></div>
+        </div>
+        <div class="muted">Saves as <code>&lt;NFC UID&gt; : &lt;URI&gt;</code> using <code>/set?key=&amp;value=</code> on the Pico.</div>
+      </div>
+    </div>
+
+    <div class="card footer">
+      <div><b>Tip</b>: If the search fails due to CORS, proxy it through the Pico and set <code>API_BASE = ''</code> below.</div>
+    </div>
+  </div>
+
+<script>
+  // ---------------- Config ----------------
+  // If your 'music.local' API allows CORS, leave this as-is.
+  // If you proxy through the Pico (e.g., /search?query=...), set API_BASE = '' and adjust SEARCH_PATH.
+  const API_BASE   = 'http://music.local';
+  const SEARCH_PATH = '/api/search'; // change to '/search' if you proxy
+
+  // The Pico itself (same-origin). Leave as '' unless you host the HTML elsewhere.
+  const PICO_BASE  = '';
+
+  // ---------------- DOM ----------------
+  const searchInput  = document.getElementById('searchInput');
+  const searchBtn    = document.getElementById('searchBtn');
+  const resultsEl    = document.getElementById('results');
+  const searchStatus = document.getElementById('searchStatus');
+
+  const nfcField     = document.getElementById('nfcField');
+  const refreshNfcBtn= document.getElementById('refreshNfcBtn');
+
+  const uriField     = document.getElementById('uriField');
+  const saveBtn      = document.getElementById('saveBtn');
+  const saveStatus   = document.getElementById('saveStatus');
+
+  let selectedItemEl = null;
+  let selectedURI = '';
+
+  // ---------------- Helpers ----------------
+  function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function albumArtworkUrl(item) {
+    // If artwork_url is relative like "./artwork/group/6", resolve it against API_BASE
+    try { return new URL(item.artwork_url, API_BASE).toString(); }
+    catch { return ''; }
+  }
+
+  function toAlbumURI(item) {
+    // Prefer API-provided URI. If missing, synthesize "library:album:<id>"
+    if (item.uri && item.uri.startsWith('library:')) return item.uri;
+    return `library:album:${item.id}`;
+  }
+
+  function clearResults() {
+    resultsEl.innerHTML = '';
+    selectedURI = '';
+    uriField.value = '';
+    if (selectedItemEl) selectedItemEl.classList.remove('selected');
+    selectedItemEl = null;
+  }
+
+  // ---------------- Search ----------------
+  async function doSearch() {
+    clearResults();
+    searchStatus.textContent = 'Searching…';
+
+    const q = (searchInput.value || '').trim();
+    if (!q) { searchStatus.textContent = 'Enter something to search.'; return; }
+
+    const type = encodeURIComponent('tracks,artists,albums,playlists');
+    // If using API_BASE: cross-origin request. If proxying, API_BASE should be '' and SEARCH_PATH should be the Pico route.
+    const url = `${API_BASE}${SEARCH_PATH}?type=${type}&query=${encodeURIComponent(q)}`;
+
+    try {
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      const albums = (data && data.albums && Array.isArray(data.albums.items)) ? data.albums.items : [];
+      if (!albums.length) {
+        searchStatus.textContent = 'No albums found.';
+        return;
+      }
+
+      // Render results
+      for (const item of albums) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = `
+          <img class="cover" src="${escapeHtml(albumArtworkUrl(item))}" onerror="this.style.visibility='hidden'">
+          <div class="meta">
+            <div class="title">${escapeHtml(item.name || '(unknown)')}</div>
+            <div class="artist">${escapeHtml(item.artist || '')}</div>
+            <div class="subtle">${(item.year ? escapeHtml(String(item.year)) : '')}</div>
+          </div>
+        `;
+
+        el.addEventListener('click', () => {
+          if (selectedItemEl) selectedItemEl.classList.remove('selected');
+          el.classList.add('selected');
+          selectedItemEl = el;
+          selectedURI = toAlbumURI(item);
+          uriField.value = selectedURI;
+        });
+
+        resultsEl.appendChild(el);
+      }
+
+      searchStatus.textContent = `Found ${albums.length} album${albums.length>1?'s':''}. Click one to select.`;
+    } catch (err) {
+      searchStatus.innerHTML = `<span class="error">Search failed: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+
+  searchBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+  // ---------------- NFC polling ----------------
+  async function pollNfcOnce() {
+    try {
+      const resp = await fetch(`${PICO_BASE}/nfc`, { cache: 'no-store' });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data && data.uid) nfcField.value = data.uid;
+    } catch {}
+  }
+  refreshNfcBtn.addEventListener('click', pollNfcOnce);
+  setInterval(pollNfcOnce, 1000); // poll every second
+
+  // ---------------- Save to Redis via Pico /set ----------------
+  async function saveMapping() {
+    saveStatus.textContent = '';
+    const uid = (nfcField.value || '').trim();
+    const uri = (uriField.value || '').trim();
+    if (!uid) { saveStatus.innerHTML = '<span class="error">No NFC UID.</span>'; return; }
+    if (!uri) { saveStatus.innerHTML = '<span class="error">No URI selected.</span>'; return; }
+
+    const url = `${PICO_BASE}/set?key=${encodeURIComponent(uid)}&value=${encodeURIComponent(uri)}`;
+    try {
+      const resp = await fetch(url, { method: 'GET' });
+      const text = await resp.text();
+      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      saveStatus.textContent = `Saved: ${uid} → ${uri}`;
+    } catch (err) {
+      saveStatus.innerHTML = `<span class="error">Save failed: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+  saveBtn.addEventListener('click', saveMapping);
+
+  // Initial NFC read attempt
+  pollNfcOnce();
+</script>
+</body>
+</html>

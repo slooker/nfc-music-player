@@ -12,82 +12,33 @@ playlists = {
         "shuffle": "false"
     },
 
-    # example
-    "A4CC7905": {
-        "uris": "library:playlist:10",
+
+
+
+    ## TTRPG Music 
+
+    # Combat Music
+    "B2AC41AE": {
+        "uris": "library:album:6384875762260480698",
+        "shuffle": "false"
+    },
+
+    # Marketplace Music
+    "81E17905": {
+        "uris": "library:album:6555385773523479661",
+        "shuffle": "false"
+    },
+
+    # Harbor Music
+    "B94C0D05": {
+        "uris": "library:album:6806322487804259551",
         "shuffle": "false",
     },
 
-    # hilda
-    "B2AC41AE": {
-        "uris": "spotify:playlist:7IWpNVWKrxIEqOLiHKgTat",
-        "shuffle": "true",
-    },
-
-    # irish pub
+    # Forest Music
     "43A2EB33": {
-        "uris": "spotify:playlist:37i9dQZF1DWUrmUI5ur5GK",
-        "shuffle": "true"
-    },
-
-    # stardew valley
-    "044239013f4003": {
-        "uris": "spotify:playlist:2siGNWRGUzqNvsLXfb0ZwV",
-        "shuffle": "true"
-    },
-
-    # la cantina
-    "04423601354003": {
-        "uris": "spotify:playlist:37i9dQZF1DWZLL3REk8t1E",
-        "shuffle": "true"
-    },
-
-    # sackboy
-    "04423301444003": {
-        "uris": "spotify:playlist:0FVfzx2fHJCyVu9nUGvAJB",
-        "shuffle": "true"
-    },
-
-    # astobot
-    "04aeb54aba2a81": {
-        "uris": "spotify:playlist:2xZ0XfElu2YFL9oX7J2l5v",
-        "shuffle": "true"
-    },
-
-    # hobbit
-    "044224013d4003": {
-        "uris": "library:album:8249546791409011466",
-        "shuffle": "false"
-    },
-
-    # hellsinger
-    "04422d01a54003": {
-        "uris": "library:album:283447010871435542",
-        "shuffle": "false"
-    },
-
-    # my playlist #5
-    "04422b01074003": {
-        "uris": "spotify:playlist:18OwPZPIEZg50LxcokIznH",
-        "shuffle": "true"
-    },
-
-    # elena's playlist
-    "04afb54aba2a81": {
-        "uris": "spotify:playlist:1p3poGxVAqt1LVhaVgF1y8",
-        "shuffle": "false"
-    },
-
-    # hi-fi rush
-    "04acb54aba2a81": {
-        "uris": "spotify:playlist:1egk6MwzYt2V2b6iY4d3Uq",
-        "shuffle": "true"
-    },
-
-    # global traveller
-    "04a6b54aba2a81": {
-        "uris": "spotify:playlist:5vmbEDswcU1vLCc12i2cyt",
-        "shuffle": "false"
+        "uris": "library:album:948097856744077898",
+        "shuffle": "false",
     }
 
 }
