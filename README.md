@@ -370,6 +370,65 @@ python music-player.py
 - **Auto-Recovery**: Automatically restarts NFC communication if I2C bus becomes unresponsive
 - **Hardware Compatibility**: Designed for Pi Zero 2W but should work on other Pi models with GPIO
 
+## Bonus - Pico W + PN532 (SPI) + PowerBoost 1000C
+Bonus device - NFC reader to help you setup your library. 
+*(EN power switch + LBO low-battery indicator via resistor divider)*
+
+### PowerBoost 1000C → Pico W (Power, Switch, LBO)
+
+| PowerBoost 1000C | Pico W | Pico Pin # | Notes |
+|---|---|---:|---|
+| **5V** | **VSYS** | **39** | Main power feed. **Do not** connect 5 V to 3V3. |
+| **GND** | **GND** | any (e.g. **28**, **38**) | Common ground. |
+| **EN** | **SPST switch → GND** | — | **OFF** when EN is tied to GND; **ON** when left open. (Disables 5 V boost only—unplug Pico USB to fully power down.) |
+| **LBO** | **GP22 via divider** | **29** | LBO is active-low and pulled up >3.3 V → **use divider** below. |
+
+#### LBO → GP22 resistor divider (choose one)
+
+> **Wiring:** `LBO ── Rtop ──► GP22 (pin 29) ── Rbottom ──► GND`  
+> *(No internal pull-ups in code; read GP22 as a plain input.)*
+
+- **Option A (series build)**  
+  - **Rtop = 100 kΩ**  
+  - **Rbottom = 100 kΩ + 47 kΩ (series) = 147 kΩ**  
+  - Scales 5.0 V → ~2.98 V, 4.2 V → ~2.50 V ✅
+
+- **Option B (parallel build)**  
+  - **Rtop = 100 kΩ**  
+  - **Rbottom = 220 kΩ ∥ 470 kΩ ≈ 150 kΩ**  
+  - Scales 5.0 V → ~3.00 V, 4.2 V → ~2.52 V ✅
+
+---
+
+### PN532 (SPI) → Pico W
+
+| PN532 | Pico W | Pico Pin # | GPIO | Notes |
+|---|---|---:|---:|---|
+| **SCK** | **SCK1** | **14** | **GP10** | SPI clock |
+| **MOSI** | **TX1 (MOSI)** | **15** | **GP11** | SPI MOSI |
+| **MISO** | **RX1 (MISO)** | **16** | **GP12** | SPI MISO |
+| **SS / SSEL (CS)** | **GPIO** | **11** | **GP8** | Chip-select (as used in code) |
+| **RST / RSTPD_N** | **GPIO** | **22** | **GP25** | Reset line |
+| **VCC** | **3V3(OUT)** | **36** | — | PN532 is a 3.3 V device |
+| **GND** | **GND** | any | — | Common ground |
+| **IRQ** *(optional)* | *(NC or chosen GPIO)* | — | — | Not required for SPI with Adafruit driver |
+
+---
+
+### Optional power LED (low current)
+
+- **3V3(OUT) (pin 36) → (2.2–3.3 kΩ) → LED anode → LED cathode → GND**  
+  *(Higher resistor = lower drain.)*
+
+---
+
+### Notes
+
+- Pico W **GPIOs are 3.3 V-only** → divider on **LBO** is required.  
+- For a true master OFF, either unplug Pico USB or add a switch inline between **PowerBoost 5V → VSYS (pin 39)**.  
+- Keep PN532 on **3.3 V** (pin 36), not 5 V.  
+- Handy ground near GP22: **pin 28 (GND)** is next to **pin 29 (GP22)**.
+
 ## License
 
 This project is open source. Feel free to modify and distribute.
