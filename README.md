@@ -423,7 +423,6 @@ Bonus device - NFC reader to help you setup your library.
 ---
 ### Basic Wiring Diagram — Pico W + PN532 (SPI) + PowerBoost 1000C
 ![Basic Wiring Diagram](./pico-w-helper.svg)
-<img src="./pico-w-helper.svg">
 
 ### Notes
 
