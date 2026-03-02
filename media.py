@@ -133,27 +133,37 @@ def volume(vol: int):
 
 
 def queue(args: dict):
-    """Fetch album songs from Navidrome and start mpv playback.
+    """Fetch songs from Navidrome and start mpv playback.
 
     args keys:
-        id      — Navidrome album ID (required)
+        type    — "album" (default), "playlist", or "song"
+        id      — Navidrome ID (required)
         shuffle — "true" or "false" (default "false")
     """
-    album_id = args["id"]
-    shuffle = args.get("shuffle", "false") == "true"
+    media_type = args.get("type", "album")
+    media_id   = args["id"]
+    shuffle    = args.get("shuffle", "false") == "true"
 
-    # Generate auth once so all stream URLs share the same token/salt
     auth = _auth_params()
-    data = _subsonic_get("getAlbum", auth=auth, id=album_id)
-    songs = data["album"]["song"]
 
-    if shuffle:
-        random.shuffle(songs)
+    if media_type == "song":
+        urls = [f"{NAVIDROME_URL}/rest/stream.view?id={media_id}&{auth}"]
+    else:
+        if media_type == "playlist":
+            data  = _subsonic_get("getPlaylist", auth=auth, id=media_id)
+            songs = data["playlist"]["entry"]
+        else:  # album
+            data  = _subsonic_get("getAlbum", auth=auth, id=media_id)
+            songs = data["album"]["song"]
 
-    urls = [
-        f"{NAVIDROME_URL}/rest/stream.view?id={s['id']}&{auth}"
-        for s in songs
-    ]
+        if shuffle:
+            random.shuffle(songs)
+
+        urls = [
+            f"{NAVIDROME_URL}/rest/stream.view?id={s['id']}&{auth}"
+            for s in songs
+        ]
+
     _start_mpv(urls)
 
 

@@ -48,9 +48,13 @@ def queue(id):
 
 
 def queue_album(album_id: str):
-    print(f"queuing album: {album_id}")
+    queue_media("album", album_id)
+
+
+def queue_media(media_type: str, media_id: str):
+    print(f"queuing {media_type}: {media_id}")
     try:
-        media.queue({"type": "album", "id": album_id})
+        media.queue({"type": media_type, "id": media_id})
         media.repeat("all")
     except:
         error()

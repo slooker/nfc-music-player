@@ -19,7 +19,11 @@ def thread(func):
 
 def handle_new_card(uid_str: str, album_id: str | None):
     if album_id:
-        playback.queue_album(album_id)
+        if ":" in album_id:
+            media_type, media_id = album_id.split(":", 1)
+        else:
+            media_type, media_id = "album", album_id
+        playback.queue_media(media_type, media_id)
     elif library.playlists.get(uid_str):
         playback.queue(uid_str)
     else:
