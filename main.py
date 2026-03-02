@@ -26,15 +26,10 @@ def handle_new_card(uid_str: str, album_id: str | None):
         print(f"no data for card {uid_str} — write a Navidrome album ID to the card")
         syslog.syslog(syslog.LOG_WARNING, f"unrecognized tag {uid_str}")
 
-def handle_card_removed():
-    print("card removed")
-    playback.stop()
-
 try:
     playback.init()
     monitor = NFCMonitor(
         on_card_detected=handle_new_card,
-        on_card_removed=handle_card_removed,
     ).start()
     VolumeControl().start()
     

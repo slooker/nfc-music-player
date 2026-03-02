@@ -90,9 +90,8 @@ def _parse_ndef_text(ndef: bytes) -> str | None:
 
 
 class NFCMonitor:
-    def __init__(self, on_card_detected, on_card_removed):
+    def __init__(self, on_card_detected):
         self.on_card_detected = on_card_detected
-        self.on_card_removed = on_card_removed
 
         self.thread = None
         self.stop_flag = threading.Event()
@@ -143,7 +142,6 @@ class NFCMonitor:
                             self.card_present = False
                             self.last_uid = None
                             self.no_card_count = 0
-                            self.on_card_removed()
                     else:
                         self.no_card_count = 0
 

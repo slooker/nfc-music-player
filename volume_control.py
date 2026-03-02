@@ -9,6 +9,7 @@ import sys
 import signal
 import subprocess
 import media
+import playback
 
 # Volume control file
 VOLUME_FILE = '/tmp/music_volume'
@@ -151,7 +152,7 @@ class VolumeControl:
                 # --- Button handling (polling only) ---
                 sw = GPIO.input(SW_PIN)
                 if sw == 0 and self.last_sw == 1 and now - self.last_btn_time > button_delay:
-                    self.toggle_mute()
+                    playback.pause()
                     self.last_btn_time = now
                 self.last_sw = sw
                 
