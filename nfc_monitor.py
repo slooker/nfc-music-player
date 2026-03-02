@@ -14,12 +14,14 @@ def _read_ndef_text(pn532) -> str | None:
     try:
         data = bytearray()
         for page in range(4, 16):
-            block = pn532.ntag2xx_read_block(page)
-            print(f"  page {page}: {block.hex() if block else None}")
+            block = None
+            for _ in range(3):
+                block = pn532.ntag2xx_read_block(page)
+                if block is not None:
+                    break
             if block is None:
                 break
             data.extend(block)
-        print(f"  raw NDEF data: {data.hex()}")
 
         i = 0
         while i < len(data) - 1:
