@@ -47,6 +47,18 @@ def queue(id):
     sleep(1)
 
 
+def queue_album(album_id: str):
+    print(f"queuing album: {album_id}")
+    try:
+        media.queue({"type": "album", "id": album_id})
+        media.repeat("all")
+    except:
+        error()
+        return
+
+    sleep(1)
+
+
 def stop():
 
     print("stop")

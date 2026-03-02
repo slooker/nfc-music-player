@@ -17,10 +17,14 @@ def thread(func):
         syslog.syslog(syslog.LOG_ERR, e)
         stop_event.set()
 
-def handle_new_card(uid_str: str):
-    print(f"handling new card: {uid_str}")
-    if library.playlists.get(uid_str):
+def handle_new_card(uid_str: str, album_id: str | None):
+    if album_id:
+        playback.queue_album(album_id)
+    elif library.playlists.get(uid_str):
         playback.queue(uid_str)
+    else:
+        print(f"no data for card {uid_str} — write a Navidrome album ID to the card")
+        syslog.syslog(syslog.LOG_WARNING, f"unrecognized tag {uid_str}")
 
 def handle_card_removed():
     print("card removed")
