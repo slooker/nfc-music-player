@@ -1,0 +1,17 @@
+[Unit]
+Description=NFC Music Player via Owntone
+After=sound.service
+Wants=sound.service
+
+[Service]
+EnvironmentFile=/home/slooker/player/.env
+Type=simple
+User=slooker
+ExecStart=/home/slooker/player/start-music.sh
+WorkingDirectory=/home/slooker/player
+Restart=always
+RestartSec=5
+Environment=HOME=/home/slooker
+
+[Install]
+WantedBy=multi-user.target

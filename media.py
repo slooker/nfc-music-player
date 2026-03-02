@@ -13,7 +13,9 @@ output = 0
 
 
 def library():
+    puts("Getting library")
     response = get(f"{base}/api/library")
+    puts(response)
     response.raise_for_status()
     return response.json()
 

@@ -356,11 +356,43 @@ sudo journalctl -u music-player.service --since "10 minutes ago"
 cd /home/slooker/player
 source .venv/bin/activate
 
-# Test volume control only
-python volume_control_separate.py
+./start-music.sh
+```
 
-# Test music player only  
-python music-player.py
+### Optional: Store NFC mappings in Redis
+
+You can map tag UIDs to Owntone URIs in Redis and avoid editing `library.py`.
+
+**Enable in code:** in `playback.py` set `USE_REDIS = True`.
+
+**Auth:** password is read from `secrets['redis_password']`.
+
+**Server:** defaults to `192.168.0.66:6379` (adjust in `playback.py` if needed).
+
+**Key format (simple string):**
+```bash
+#### Map a tag UID to an Owntone URI
+redis-cli -h 192.168.0.66 -a "$REDIS_PASSWORD" SET 42E35CAE "library:album:8626016087299575623"
+
+#### Configure Redis via `.env`
+
+Create a `.env` in the project root:
+USE_REDIS=true
+REDIS_HOST=192.168.0.66
+REDIS_PORT=6379
+REDIS_PASSWORD=eleven-homemade-TORN
+
+- `USE_REDIS=true`: look up NFC UIDs with `GET <UID>` on Redis.
+- If not found (or `USE_REDIS=false`), falls back to `library.py`.
+
+Example:
+```
+## Using owntone 
+redis-cli -h 192.168.0.66 -a "$REDIS_PASSWORD" \
+  SET 42E35CAE "library:album:8626016087299575623"
+## Using spotify
+redis-cli -h 192.168.0.66 -a "$REDIS_PASSWORD" \
+  SET 42E35CAE "spotify:playlist:37i9dQZF1DWUrmUI5ur5GK"
 ```
 
 ## Technical Notes

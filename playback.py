@@ -1,3 +1,5 @@
+# playback.py (top of file)
+import os
 import board
 import media
 import library
@@ -6,21 +8,80 @@ import syslog
 from time import sleep
 from digitalio import DigitalInOut, Pull
 from traceback import print_exc, format_exc
+from env import load_env
 from watch_reload import start_watch
+from kv_lookup import RedisClient
+from tag_store import get_entry
 
-#PIN_SWITCH_MUTE = board.D5
-#PIN_SWITCH_MODE = board.D6
-#PIN_ROTARY_FORWARD = board.D16
-#PIN_ROTARY_BACKWARD = board.D20
-#PIN_ROTARY_CLICK = board.D13
+load_env()  # reads .env into os.environ if present
 
-CLK_PIN = 17  # Pin 11 - Clock
-DT_PIN  = 27  # Pin 13 - Data
-SW_PIN  = 22  # Pin 15 - Switch/Button (to GND, PUD_UP)
+def _truthy(s: str) -> bool:
+    return str(s).lower() in ("1", "true", "yes", "on")
+
+USE_REDIS = _truthy(os.getenv("USE_REDIS", "false"))
+REDIS_HOST = os.getenv("REDIS_HOST", "192.168.0.66")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+# prefer .env, then fall back to secrets['redis_password']
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+
+# Redis client (only created if enabled)
+_redis = RedisClient(REDIS_HOST, REDIS_PORT, REDIS_PASSWORD) if USE_REDIS else None
 
 def error():
     exc = format_exc()
     print(exc)
+    sleep(1)
+
+def _lookup_by_id(tag_id: str) -> dict | None:
+    """
+    If USE_REDIS: GET <tag_id> from Redis and return {"uris": <value>, "shuffle": "false"}.
+    Else/fallback: library.playlists.get(tag_id).
+    """
+    if _redis:
+        try:
+            uris = _redis.get(tag_id)
+        except Exception:
+            uris = None
+        if uris:
+            return {"uris": uris, "shuffle": "false"}
+    return library.playlists.get(tag_id)
+
+def queue(id):
+    data = get_entry(id)
+    if not data:
+        print(f"no data for {id}, add new tag to Redis or library")
+        import syslog
+        syslog.syslog(syslog.LOG_WARNING, f"new tag {id}")
+        return
+    try:
+        media.queue(data)
+        media.repeat("all")
+    except Exception:
+        from traceback import format_exc
+        print(format_exc())
+        from time import sleep
+        sleep(1)
+        return
+    from time import sleep
+    sleep(1)
+
+def queue(id):
+    data = get_entry(id)
+    if not data:
+        print(f"no data for {id}, add new tag to Redis or library")
+        import syslog
+        syslog.syslog(syslog.LOG_WARNING, f"new tag {id}")
+        return
+    try:
+        media.queue(data)
+        media.repeat("all")
+    except Exception:
+        from traceback import format_exc
+        print(format_exc())
+        from time import sleep
+        sleep(1)
+        return
+    from time import sleep
     sleep(1)
 
 def outputs_volume(outputs: list[str], volume: int):
@@ -30,25 +91,7 @@ def outputs_volume(outputs: list[str], volume: int):
     except:
         error()
 
-def queue(id):
-    data: dict[str, str] = library.playlists.get(id)
-    if not data:
-        print(f"no data for {id}, add new tag to library")
-        syslog.syslog(syslog.LOG_WARNING, f"new tag {id}")
-        return
-
-    try:
-        media.queue(data)
-        media.repeat("all")
-    except:
-        error()
-        return
-
-    sleep(1)
-
-
 def stop():
-
     print("stop")
     try:
         media.stop()

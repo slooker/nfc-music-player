@@ -1,4 +1,4 @@
-
+#library.py
 playlists = {
     # Perfect Circle - Eat the Elephant
     "21761305": {
@@ -11,9 +11,6 @@ playlists = {
         "uris": "library:album:5491176371471058835",
         "shuffle": "false"
     },
-
-
-
 
     ## TTRPG Music 
 
@@ -40,5 +37,4 @@ playlists = {
         "uris": "library:album:948097856744077898",
         "shuffle": "false",
     }
-
 }

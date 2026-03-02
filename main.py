@@ -5,6 +5,7 @@ from volume_control import VolumeControl, cleanup
 from threading import Thread, Event
 from traceback import format_exc
 from nfc_monitor import NFCMonitor
+from tag_store import get_entry
 
 stop_event = Event()
 
@@ -19,8 +20,12 @@ def thread(func):
 
 def handle_new_card(uid_str: str):
     print(f"handling new card: {uid_str}")
-    if library.playlists[uid_str]:
+    data = get_entry(uid_str)
+    if data:
         playback.queue(uid_str)
+    else:
+        print(f"no mapping for {uid_str} (Redis or library)")
+        syslog.syslog(syslog.LOG_WARNING, f"new tag {uid_str}")
 
 def handle_card_removed():
     print("card removed")
