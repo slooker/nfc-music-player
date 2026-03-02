@@ -118,8 +118,14 @@ def player() -> dict:
 
 
 def volume(vol: int):
-    """Set ALSA softvol to the given level (0–100)."""
+    """Set playback volume (0–100) via mpv IPC when playing, amixer otherwise."""
     vol = max(0, min(100, int(vol)))
+    if _mpv_process and _mpv_process.poll() is None:
+        try:
+            _mpv_cmd({"command": ["set_property", "volume", vol]})
+            return
+        except Exception:
+            pass
     subprocess.run(
         ["amixer", "sset", ALSA_CONTROL, f"{vol}%"],
         capture_output=True,
