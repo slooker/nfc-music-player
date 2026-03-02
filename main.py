@@ -19,7 +19,7 @@ def thread(func):
 
 def handle_new_card(uid_str: str):
     print(f"handling new card: {uid_str}")
-    if library.playlists[uid_str]:
+    if library.playlists.get(uid_str):
         playback.queue(uid_str)
 
 def handle_card_removed():

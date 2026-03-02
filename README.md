@@ -62,12 +62,7 @@ sudo apt upgrade -y
 
 # Install required packages
 sudo apt install -y python3-pip python3-venv git mpg123 alsa-utils i2c-tools \
-build-essential git autotools-dev autoconf automake libtool gettext gawk \
-gperf bison flex libconfuse-dev libunistring-dev libsqlite3-dev \
-libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
-libasound2-dev libxml2-dev libgcrypt20-dev libavahi-client-dev zlib1g-dev \
-libevent-dev libplist-dev libsodium-dev libjson-c-dev libwebsockets-dev \
-libcurl4-openssl-dev libprotobuf-c-dev \
+build-essential mpv \
 samba samba-common-bin smbclient cifs-utils \
 libasound2-plugins alsa-utils acl curl jq vim
 
@@ -83,22 +78,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install Python dependencies with uv (or pip)
-# Alternative with pip:
-# pip install adafruit-blinka adafruit-circuitpython-pn532 psutil RPi.GPIO
 pip install uv  # if you don't have uv
 uv add adafruit-blinka
 uv add adafruit-circuitpython-pn532
 uv add psutil
 uv add RPi.GPIO
-
-## Install Owntone server
-cd
-git clone https://github.com/owntone/owntone-server.git
-cd owntone-server
-autoreconf -i
-./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-install-user
-make
-sudo make install
 
 # Setup Software Volume Control
 echo 'pcm.softvol {
@@ -114,33 +98,8 @@ pcm.!default {
 }
 ctl.!default { type hw card 0 }' > $HOME/.asoundrc
 
-sudo mkdir /home/owntone
-sudo chown -R owntone:owntone /home/owntone
-# Setup Software Volume Control
-sudo -u owntone echo 'pcm.softvol {
-    type softvol
-    slave.pcm "plughw:0,0"
-    control { name "Softvol"; card 0 }
-}
-ctl.softvol { type hw card 0 }
-
-pcm.!default {
-    type plug
-    slave.pcm "softvol"
-}
-ctl.!default { type hw card 0 }' > /home/owntone/.asoundrc
-
-
-
-# Finally, create a music directory and add permissions for the owntone user to read it:
+# Finally, create a music directory
 mkdir $HOME/music
-# allow traversal of parent directories
-sudo setfacl -m u:owntone:x /home
-sudo setfacl -m u:owntone:x $HOME
-
-# allow read+traverse of the music tree (+ defaults for new files)
-sudo setfacl -R -m u:owntone:rx $HOME/music
-sudo setfacl -R -d -m u:owntone:rx $HOME/music
 ```
 
 And then enable the I2C and SPI interfaces
@@ -150,42 +109,7 @@ sudo raspi-config
 # Navigate to: Interface Options > SPI > Enable
 ```
 
-Edit the owntone config to add spotify support: 
-`nano /etc/owntone.conf`
-
-Change the `audio { }` section like so (assuming your local computer is output 0):
-```
-audio {
-  nickname = "Computer"
-  type = "alsa"
-  card = "softvol"        # use our PCM by name (from .asoundrc)
-  mixer = "Softvol"       # exact control name
-  mixer_device = "hw:0"   # control lives on card 0
-}
-```
-You can test that your outputs are set up by running `sudo -u owntone speaker-test -D softvol -c 2 -t sine -l 1`
-
-and add the following under the audio section:
-```
-spotify {
-  bitrate = 3
-  base_playlist_disable = true
-  artist_override = true
-  album_override = true
-}
-```
-Also, change the music path from `/srv/music` to `/home/<your login>/music`.
-
-Finally, go to `http://<raspberry pi ip>:3689/#/settings/online-services` and connect your spotify account
-
 ### Audio Configuration
-#### Setting Owntone Settings
-To see a list of outputs, run this:
-```bash
-curl -s "http://localhost:3689/api/outputs" | jq .
-```
-Usually your local pi will be output 0.  
-
 
 #### Enable I2S Audio
 Assuming you are using a Pi Zero 2W, your entire `/boot/firmware/config.txt` should be as follows:
@@ -240,23 +164,32 @@ sudo reboot
 Verify the volume control exists:
 ```bash
 amixer scontrols
-# Should show: Simple mixer control 'SoftMaster',0
+# Should show: Simple mixer control 'Softvol',0
+```
+
+### Navidrome Configuration
+
+This player streams music from a [Navidrome](https://www.navidrome.org/) server via the Subsonic API. Navidrome does not need to run on the Pi — it can run anywhere on your network or the internet.
+
+Edit `media.py` and set your credentials:
+```python
+NAVIDROME_URL = "https://your-navidrome-server"
+USERNAME = "your-username"
+PASSWORD = "your-password"
 ```
 
 ## Project Setup
 
+```bash
+# Move the `music-player.service` file into `/etc/systemd/system` and enable it
 
-# Move the `music-player.service` file into `/etc/systemd/system` and enable it and the owntone service
 sudo mv music-player.service /etc/systemd/system
 
 # Enable the music player as a service and start it
 sudo systemctl enable music-player.service
 sudo systemctl start music-player.service
-
-# Enable Owntone as a service and start it
-sudo systemctl enable owntone.service
-sudo systemctl start owntone.service
 ```
+```bash
 # Check status
 sudo systemctl status music-player.service
 
@@ -269,35 +202,26 @@ sudo journalctl -u music-player.service -f
 ### Adding NFC Cards
 1. Run the music player to see card UIDs:
    ```bash
-   python music-player.py
+   python main.py
    ```
 2. Place an NFC card near the reader
 3. Note the UID that appears (e.g., `A4CC7905`)
-4. Add to `/home/slooker/player/library.py` (note, you only need one of these, pick which one is relevant for you):
-   ```
-    # name of spotify playlist
-    "<nfc tag string>": {
-        "uris": "spotify:playlist:37i9dQZF1DWZLL3REk8t1E",
-        "shuffle": "true"
-    },
-    # name of local album
-    "<nfc tag string>": {
-        "uris": "library:album:8249546791409011466",
-        "shuffle": "false"
-    },
-   ```
-
-   You can get the spotify playlist id from the url.  For example, https://open.spotify.com/album/7nnNLD5cv828YSFxXaezRm, for this album, you would create an entry below in your `library.py` file:
-   ```
-   # Perfect Circle - Eat the Elephant
-   "<nfc tag string>": {
-       "uris": "spotify:playlist:7nnNLD5cv828YSFxXaezRm",
-       "shuffle": "true"
+4. Find the album ID in Navidrome:
+   - Browse to the album in the Navidrome web UI — the ID appears in the URL
+   - Or query the Subsonic API:
+     ```bash
+     curl "https://your-navidrome-server/rest/getAlbumList.view?type=alphabeticalByName&u=<user>&p=<pass>&v=1.16.1&c=test&f=json" | jq .
+     ```
+5. Add the entry to `library.py`:
+   ```python
+   # Artist - Album Name
+   "<nfc tag uid>": {
+       "type": "album",
+       "id": "<navidrome album id>",
+       "shuffle": "false"
    },
    ```
-
-   For a local playlist or album, you would look in Owntone (usually http://owntone.local:3689 or http://<raspberry pi ip>:3689)
-   
+   To shuffle the album on play, set `"shuffle": "true"`.
 
 ### Controls
 - **Place NFC Card**: Start playing assigned music
@@ -309,18 +233,14 @@ sudo journalctl -u music-player.service -f
 ### File Organization
 ```
 /home/slooker/
-├── music/
-│   ├── song1.mp3
-│   ├── song2.mp3
-│   ├── album_folder/
-│   │   ├── track1.mp3
-│   │   └── track2.mp3
-│   └── music.csv
 └── player/
     ├── .venv/
-    ├── music-player.py
-    ├── volume_control_separate.py
-    └── start_music_player.sh
+    ├── main.py
+    ├── media.py
+    ├── library.py
+    ├── playback.py
+    ├── volume_control.py
+    └── start-music.sh
 ```
 
 ## Troubleshooting
@@ -337,8 +257,23 @@ sudo i2cdetect -y 1
 speaker-test -c 2 -t wav
 
 # Test volume control
-amixer sget SoftMaster
-amixer sset SoftMaster 75%
+amixer sget Softvol
+amixer sset Softvol 75%
+```
+
+### Test Navidrome Connection
+```bash
+cd /home/slooker/player
+source .venv/bin/activate
+python -c "import media; print(media.library())"
+# Should print: {'updating': False}
+```
+
+### Test Playback Manually
+```bash
+python -c "import media; media.queue({'type': 'album', 'id': '<album_id>', 'shuffle': 'false'})"
+# Music should start playing through the DAC
+python -c "import media; media.stop()"
 ```
 
 ### View Service Logs
@@ -357,21 +292,23 @@ cd /home/slooker/player
 source .venv/bin/activate
 
 # Test volume control only
-python volume_control_separate.py
+python volume_control.py
 
-# Test music player only  
-python music-player.py
+# Test music player only
+python main.py
 ```
 
 ## Technical Notes
 
-- **Volume Control**: Uses ALSA's `softvol` plugin for real-time volume adjustment without interrupting playback
-- **Card Removal Detection**: Uses threaded NFC monitoring with watchdog timer for reliable detection during audio playback
-- **Auto-Recovery**: Automatically restarts NFC communication if I2C bus becomes unresponsive
-- **Hardware Compatibility**: Designed for Pi Zero 2W but should work on other Pi models with GPIO
+- **Streaming**: Music is streamed in real-time from Navidrome via the Subsonic HTTP API. Each NFC card scan generates fresh auth tokens and fetches stream URLs for the album's tracks.
+- **Playback**: `mpv` handles audio decoding and playback, controlled via a Unix IPC socket (`/tmp/mpv-socket`). mpv is started as a subprocess on card scan and terminated on card removal.
+- **Volume Control**: Uses ALSA's `softvol` plugin via `amixer` for real-time volume adjustment without interrupting playback.
+- **Card Removal Detection**: Uses threaded NFC monitoring with watchdog timer for reliable detection during audio playback.
+- **Auto-Recovery**: Automatically restarts NFC communication if I2C bus becomes unresponsive.
+- **Hardware Compatibility**: Designed for Pi Zero 2W but should work on other Pi models with GPIO.
 
 ## Bonus - Pico W + PN532 (SPI) + PowerBoost 1000C
-Bonus device - NFC reader to help you setup your library. 
+Bonus device - NFC reader to help you setup your library.
 *(EN power switch + LBO low-battery indicator via resistor divider)*
 
 ### PowerBoost 1000C → Pico W (Power, Switch, LBO)
@@ -385,17 +322,17 @@ Bonus device - NFC reader to help you setup your library.
 
 #### LBO → GP22 resistor divider (choose one)
 
-> **Wiring:** `LBO ── Rtop ──► GP22 (pin 29) ── Rbottom ──► GND`  
+> **Wiring:** `LBO ── Rtop ──► GP22 (pin 29) ── Rbottom ──► GND`
 > *(No internal pull-ups in code; read GP22 as a plain input.)*
 
-- **Option A (series build)**  
-  - **Rtop = 100 kΩ**  
-  - **Rbottom = 100 kΩ + 47 kΩ (series) = 147 kΩ**  
+- **Option A (series build)**
+  - **Rtop = 100 kΩ**
+  - **Rbottom = 100 kΩ + 47 kΩ (series) = 147 kΩ**
   - Scales 5.0 V → ~2.98 V, 4.2 V → ~2.50 V ✅
 
-- **Option B (parallel build)**  
-  - **Rtop = 100 kΩ**  
-  - **Rbottom = 220 kΩ ∥ 470 kΩ ≈ 150 kΩ**  
+- **Option B (parallel build)**
+  - **Rtop = 100 kΩ**
+  - **Rbottom = 220 kΩ ∥ 470 kΩ ≈ 150 kΩ**
   - Scales 5.0 V → ~3.00 V, 4.2 V → ~2.52 V ✅
 
 ---
@@ -417,7 +354,7 @@ Bonus device - NFC reader to help you setup your library.
 
 ### Optional power LED (low current)
 
-- **3V3(OUT) (pin 36) → (2.2–3.3 kΩ) → LED anode → LED cathode → GND**  
+- **3V3(OUT) (pin 36) → (2.2–3.3 kΩ) → LED anode → LED cathode → GND**
   *(Higher resistor = lower drain.)*
 
 ---
@@ -426,9 +363,9 @@ Bonus device - NFC reader to help you setup your library.
 
 ### Notes
 
-- Pico W **GPIOs are 3.3 V-only** → divider on **LBO** is required.  
-- For a true master OFF, either unplug Pico USB or add a switch inline between **PowerBoost 5V → VSYS (pin 39)**.  
-- Keep PN532 on **3.3 V** (pin 36), not 5 V.  
+- Pico W **GPIOs are 3.3 V-only** → divider on **LBO** is required.
+- For a true master OFF, either unplug Pico USB or add a switch inline between **PowerBoost 5V → VSYS (pin 39)**.
+- Keep PN532 on **3.3 V** (pin 36), not 5 V.
 - Handy ground near GP22: **pin 28 (GND)** is next to **pin 29 (GP22)**.
 
 ## License
