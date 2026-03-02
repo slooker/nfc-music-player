@@ -30,7 +30,7 @@ A touchless music player that uses NFC cards to trigger playback of specific son
 | SCK       | 23         | GPIO11     | SPI Clock                                   |
 | MOSI      | 19         | GPIO10     | SPI Master Out / Slave In                   |
 | MISO      | 21         | GPIO9      | SPI Master In / Slave Out                   |
-| SS / CS   | 26         | GPIO8      | SPI Chip Select                             |
+| SS / CS   | 26         | GPIO7      | SPI Chip Select                             |
 | IRQ       | 22         | GPIO25     | Interrupt pin for card detection (optional)|
 | RSTO      | Not used   | -          | Reset pin (optional, can leave unconnected)|
 

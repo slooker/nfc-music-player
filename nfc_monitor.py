@@ -18,7 +18,7 @@ class NFCMonitor:
         self.no_card_threshold = 3  # consecutive misses before removal
         # Initialize PN532 SPI
         spi = board.SPI()
-        cs = digitalio.DigitalInOut(board.D7)  # GPIO8 CE0, physical pin 24
+        cs = digitalio.DigitalInOut(board.D7)  # GPIO7, physical pin 26
         self.pn532 = PN532_SPI(spi, cs, reset=None, debug=False)
         try:
             ic, ver, rev, support = self.pn532.firmware_version
