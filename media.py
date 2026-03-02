@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import random
 import secrets
 import socket
@@ -71,13 +72,22 @@ def _start_mpv(urls: list[str]):
     """Kill any running mpv instance, then start a new one with the given URL playlist."""
     global _mpv_process
     stop()
+    # Remove stale socket if present
+    if os.path.exists(MPV_SOCKET):
+        os.remove(MPV_SOCKET)
     args = [
         "mpv",
         "--no-video",
+        "--ytdl=no",
         f"--input-ipc-server={MPV_SOCKET}",
     ] + urls
     _mpv_process = subprocess.Popen(args)
-    time.sleep(0.5)  # give mpv time to create the IPC socket
+    # Poll until the socket appears (up to 5 seconds) instead of a fixed sleep
+    for _ in range(50):
+        if os.path.exists(MPV_SOCKET):
+            return
+        time.sleep(0.1)
+    raise RuntimeError("mpv did not create IPC socket — check that mpv is installed and the stream URLs are valid")
 
 
 # ── Public API (same signatures as the original OwnTone-based media.py) ───────
