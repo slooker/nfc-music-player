@@ -90,8 +90,10 @@ def _read_ntag_ndef(pn532) -> str | None:
                 if block is not None:
                     break
             if block is None:
+                print(f"  NTAG: page {page} unreadable after 3 retries")
                 break
             data.extend(block)
+        print(f"  NTAG: read {len(data)} bytes — {data[:8].hex()!r}...")
         return _parse_ndef_tlv(bytes(data))
     except Exception as e:
         print(f"NTAG NDEF read error: {e}")
@@ -109,12 +111,15 @@ def _read_mifare_classic_ndef(pn532, uid: bytes) -> str | None:
         data = bytearray()
         for sector in range(1, 5):      # sectors 1–4 → ~192 bytes, enough for any ID
             block_start = sector * 4
-            if not pn532.mifare_classic_authenticate_block(
+            ok = pn532.mifare_classic_authenticate_block(
                 uid, block_start, _MIFARE_KEY_A, _MIFARE_NDEF_KEY
-            ):
+            )
+            print(f"  MIFARE: sector {sector} auth {'OK' if ok else 'FAILED'}")
+            if not ok:
                 break
             for block in range(block_start, block_start + 3):  # skip trailer (+3)
                 block_data = pn532.mifare_classic_read_block(block)
+                print(f"  MIFARE: block {block} = {block_data.hex() if block_data else None}")
                 if block_data is None:
                     break
                 data.extend(block_data)
